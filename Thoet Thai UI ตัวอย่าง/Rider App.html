@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Thoet Thai · Rider App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%;
+    font-family: "IBM Plex Sans Thai", system-ui, sans-serif; }
+  body { background: #EDEAE3; }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { scrollbar-width: none; }
+  *, *::before, *::after { box-sizing: border-box; }
+  button { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="r-shared.jsx"></script>
+<script type="text/babel" src="r-screens.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { IOSDevice, DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
+const { RHome, RIncomingJob, RActiveJob, RDeliveredSummary, REarnings, RHistory, RProfile } = window;
+
+function RiderApp({ initial = 'home', initialStep = 0 }) {
+  const [screen, setScreen] = React.useState(initial);
+  const [online, setOnline] = React.useState(initial !== 'home-off');
+  const [stepIdx, setStepIdx] = React.useState(initialStep);
+  const [toast, setToast] = React.useState(null);
+
+  const todayStats = { jobs: 8, gross: 320, hours: 4.5 };
+
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(null), 2200); };
+
+  const onNav = id => {
+    if (id === 'home') setScreen('home');
+    else if (id === 'history') setScreen('history');
+    else if (id === 'earn') setScreen('earn');
+    else if (id === 'me') setScreen('profile');
+  };
+
+  const advance = () => {
+    if (stepIdx < 3) setStepIdx(stepIdx + 1);
+    else setScreen('delivered');
+  };
+
+  let content;
+  if (screen === 'incoming') content = <RIncomingJob
+    onAccept={() => { showToast('รับงานแล้ว · เริ่มไปที่ร้าน'); setStepIdx(0); setScreen('active'); }}
+    onReject={() => { showToast('ปฏิเสธแล้ว'); setScreen('home'); }}/>;
+  else if (screen === 'active') content = <RActiveJob stepIdx={stepIdx}
+    onAdvance={advance}
+    onCancel={() => { setScreen('home'); }}
+    onMaps={() => showToast('เปิด Google Maps...')}/>;
+  else if (screen === 'delivered') content = <RDeliveredSummary
+    onDone={() => { setStepIdx(0); setScreen('home'); }}/>;
+  else if (screen === 'history') content = <RHistory onNav={onNav} online={online}/>;
+  else if (screen === 'earn') content = <REarnings onNav={onNav} online={online}/>;
+  else if (screen === 'profile') content = <RProfile onNav={onNav} online={online}/>;
+  else content = <RHome online={online}
+    onToggle={() => setOnline(o => !o)}
+    todayStats={todayStats} onNav={onNav}/>;
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {content}
+      {(screen === 'home') && online && (
+        <button onClick={() => setScreen('incoming')} style={{
+          position: 'absolute', bottom: 168, right: 16, height: 44, padding: '0 14px',
+          borderRadius: 999, background: '#1A1A17', color: '#fff', border: 'none',
+          cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }}>
+          🛵 จำลองงานใหม่
+        </button>
+      )}
+      {toast && (
+        <div style={{ position: 'absolute', top: 100, left: '50%',
+          transform: 'translateX(-50%)', background: '#1A1A17', color: '#fff',
+          padding: '12px 18px', borderRadius: 10, fontSize: 14, fontWeight: 500,
+          boxShadow: '0 6px 20px rgba(0,0,0,0.3)', whiteSpace: 'nowrap', zIndex: 100 }}>
+          ✓ {toast}</div>
+      )}
+    </div>
+  );
+}
+
+function PhoneFrame({ children }) {
+  return <IOSDevice width={375} height={770}>{children}</IOSDevice>;
+}
+
+function App() {
+  const [tab, setTab] = React.useState('flow');
+  return (
+    <div style={{ minHeight: '100vh', background: '#EDEAE3' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(237,234,227,0.9)',
+        backdropFilter: 'blur(8px)', borderBottom: '1px solid #DDD8CC',
+        padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 600 }}>Thoet Thai · Rider App</div>
+          <div style={{ fontSize: 12.5, color: '#6B6B66', marginTop: 2 }}>
+            5.3 · ใช้มือเดียวตอนจอด — ปุ่มใหญ่มาก, contrast สูง, ไม่มี scroll
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 4, background: '#fff', padding: 4, borderRadius: 10,
+          border: '1px solid #DDD8CC' }}>
+          {[['flow','Flow'], ['variants','All screens']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} style={{
+              padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
+              background: tab === id ? '#1A1A17' : 'transparent',
+              color: tab === id ? '#fff' : '#1A1A17',
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'flow' ? (
+        <div style={{ padding: '32px 16px', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', gap: 16 }}>
+          <div style={{ maxWidth: 600, textAlign: 'center', fontSize: 13, color: '#5A5A55',
+            lineHeight: 1.6 }}>
+            กดปุ่ม "ออนไลน์" → ปุ่มดำมุมขวาล่าง <b>"🛵 จำลองงานใหม่"</b> → ดูหน้ารับงาน countdown 30s
+            → กด "✓ รับงาน" → flow 4 ขั้น (ไปร้าน → รับของ → ไปส่ง → ส่งสำเร็จ) → สรุปรายได้
+          </div>
+          <PhoneFrame><RiderApp initial="home"/></PhoneFrame>
+        </div>
+      ) : (
+        <DesignCanvas storageKey="thoet-rider-all">
+          <DCSection id="status" title="A · สถานะหลัก"
+            subtitle="Toggle online/offline ที่เปลี่ยนสีทั้งหน้า">
+            <DCArtboard id="r-off" label="A1 · ออฟไลน์" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="home-off"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="r-on" label="A2 · ออนไลน์ (เขียวทั้งหน้า)" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="home"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="r-incoming" label="A3 · งานใหม่ (countdown 30s)" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="incoming"/></PhoneFrame>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="active" title="B · Active Job (4 ขั้น)"
+            subtitle="แต่ละขั้นมีปุ่มเดียวใหญ่ๆ + ปุ่ม Maps เด่นทุกหน้า">
+            <DCArtboard id="r-step1" label="B1 · ไปร้าน" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="active" initialStep={0}/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="r-step2" label="B2 · รับของแล้ว" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="active" initialStep={1}/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="r-step3" label="B3 · ไปส่ง" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="active" initialStep={2}/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="r-step4" label="B4 · ส่งของ + เก็บเงิน" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="active" initialStep={3}/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="r-done" label="B5 · ส่งสำเร็จ" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="delivered"/></PhoneFrame>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="me" title="C · บัญชี / รายได้"
+            subtitle="รายได้ · งานของฉัน · โปรไฟล์">
+            <DCArtboard id="r-earn" label="C1 · รายได้ (วันนี้/7วัน/30วัน)" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="earn"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="r-hist" label="C2 · งานของฉัน" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="history"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="r-me" label="C3 · ฉัน" width={395} height={790}>
+              <PhoneFrame><RiderApp initial="profile"/></PhoneFrame>
+            </DCArtboard>
+          </DCSection>
+
+          <DCPostIt top={120} left={40} rotate={-3}>
+            ใช้มือเดียวตอนจอดรถ — ปุ่ม ≥64px, fontSize ≥14px,
+            ปุ่ม Maps สีน้ำเงินเด่นทุกหน้า active job
+          </DCPostIt>
+        </DesignCanvas>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

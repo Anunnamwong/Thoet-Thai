@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Thoet Thai · Merchant App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%;
+    font-family: "IBM Plex Sans Thai", system-ui, sans-serif; }
+  body { background: #EDEAE3; }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { scrollbar-width: none; }
+  *, *::before, *::after { box-sizing: border-box; }
+  button { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="m-shared.jsx"></script>
+<script type="text/babel" src="m-dashboard.jsx"></script>
+<script type="text/babel" src="m-screens.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { IOSDevice } = window;
+const { DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
+const {
+  M_MENU, HOURS, ACTIVE_ORDERS,
+  MDashboard, IncomingOrderAlert, MOrdersList, MOrderDetail,
+  MMenuList, MItemEditor, MHoursEditor, MRevenue, MSettlements, MProfile,
+} = window;
+
+function MerchantApp({ initial = 'home' }) {
+  const [screen, setScreen] = React.useState(initial);
+  const [shopOpen, setShopOpen] = React.useState(true);
+  const [menu, setMenu] = React.useState(M_MENU);
+  const [hours, setHours] = React.useState(HOURS);
+  const [orderId, setOrderId] = React.useState(null);
+  const [editingItem, setEditingItem] = React.useState(null);
+  const [toast, setToast] = React.useState(null);
+
+  const alertCount = ACTIVE_ORDERS.filter(o => o.status !== 'pickup').length;
+
+  const showToast = msg => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2000);
+  };
+
+  // Auto-trigger incoming order alert after a beat on home screen (demo)
+  // Disabled by default — user can press the button to see it
+  const triggerAlert = () => setScreen('alert');
+
+  const stats = { orders: 28, revenue: 2840, cooking: 2, waiting: 1, avgMin: 14 };
+
+  const onNav = id => {
+    if (id === 'home') setScreen('home');
+    else if (id === 'orders') setScreen('orders');
+    else if (id === 'menu') setScreen('menu');
+    else if (id === 'revenue') setScreen('revenue');
+    else if (id === 'me') setScreen('profile');
+  };
+
+  let content;
+  if (screen === 'alert') content = <IncomingOrderAlert
+    onAccept={mins => { showToast(`รับออเดอร์ · ทำใน ${mins} นาที`); setScreen('orders'); }}
+    onReject={() => { showToast('ปฏิเสธออเดอร์แล้ว'); setScreen('home'); }}/>;
+  else if (screen === 'orders') content = <MOrdersList orders={ACTIVE_ORDERS}
+    alertCount={alertCount}
+    onOpenOrder={id => { setOrderId(id); setScreen('order-detail'); }}
+    onNav={onNav}/>;
+  else if (screen === 'order-detail') content = <MOrderDetail orderId={orderId}
+    onBack={() => setScreen('orders')}
+    onMarkReady={() => { showToast('เรียกไรเดอร์แล้ว'); setScreen('orders'); }}/>;
+  else if (screen === 'menu') content = <MMenuList items={menu}
+    alertCount={alertCount}
+    onToggleSold={id => setMenu(m => m.map(it => it.id === id ? { ...it, sold: !it.sold } : it))}
+    onEdit={id => { setEditingItem(id); setScreen('item-editor'); }}
+    onAdd={() => { setEditingItem(null); setScreen('item-editor'); }}
+    onNav={onNav}/>;
+  else if (screen === 'item-editor') content = <MItemEditor itemId={editingItem} items={menu}
+    onSave={form => {
+      if (editingItem) {
+        setMenu(m => m.map(it => it.id === editingItem ? { ...it, ...form } : it));
+        showToast('บันทึกแล้ว');
+      } else {
+        setMenu(m => [...m, { ...form, id: Date.now(), price: Number(form.price) }]);
+        showToast('เพิ่มเมนูแล้ว');
+      }
+      setScreen('menu');
+    }}
+    onDelete={() => {
+      setMenu(m => m.filter(it => it.id !== editingItem));
+      showToast('ลบเมนูแล้ว');
+      setScreen('menu');
+    }}
+    onBack={() => setScreen('menu')}/>;
+  else if (screen === 'hours') content = <MHoursEditor hours={hours}
+    onChange={setHours} onBack={() => setScreen('home')}/>;
+  else if (screen === 'revenue') content = <MRevenue alertCount={alertCount}
+    onSettlements={() => setScreen('settlements')} onNav={onNav}/>;
+  else if (screen === 'settlements') content = <MSettlements
+    onBack={() => setScreen('revenue')}/>;
+  else if (screen === 'profile') content = <MProfile alertCount={alertCount}
+    onHours={() => setScreen('hours')} onNav={onNav}/>;
+  else content = <MDashboard shopOpen={shopOpen}
+    onToggle={() => setShopOpen(o => !o)}
+    stats={stats} onNav={onNav} alertCount={alertCount}
+    onOpenOrder={id => setScreen(id)}/>;
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {content}
+      {/* Demo button to trigger incoming alert from home */}
+      {screen === 'home' && (
+        <button onClick={triggerAlert} style={{
+          position: 'absolute', bottom: 92, right: 16, height: 44, padding: '0 14px',
+          borderRadius: 999, background: '#1A1A17', color: '#fff', border: 'none',
+          cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          🔔 จำลองออเดอร์ใหม่
+        </button>
+      )}
+      {toast && (
+        <div style={{ position: 'absolute', top: 100, left: '50%',
+          transform: 'translateX(-50%)', background: '#1A1A17', color: '#fff',
+          padding: '12px 18px', borderRadius: 10, fontSize: 14, fontWeight: 500,
+          boxShadow: '0 6px 20px rgba(0,0,0,0.3)', whiteSpace: 'nowrap', zIndex: 100 }}>
+          ✓ {toast}</div>
+      )}
+    </div>
+  );
+}
+
+function PhoneFrame({ children }) {
+  return <IOSDevice width={375} height={770}>{children}</IOSDevice>;
+}
+
+function App() {
+  const [tab, setTab] = React.useState('flow');
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#EDEAE3' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(237,234,227,0.9)',
+        backdropFilter: 'blur(8px)', borderBottom: '1px solid #DDD8CC',
+        padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 600 }}>Thoet Thai · Merchant App</div>
+          <div style={{ fontSize: 12.5, color: '#6B6B66', marginTop: 2 }}>
+            5.2 · ออกแบบให้แม่ค้าวัย 50+ ใช้ได้ — ปุ่มใหญ่ ตัวอักษรใหญ่ ไม่มี gesture
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 4, background: '#fff', padding: 4, borderRadius: 10,
+          border: '1px solid #DDD8CC' }}>
+          {[['flow','Flow'], ['variants','All screens']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} style={{
+              padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
+              background: tab === id ? '#1A1A17' : 'transparent',
+              color: tab === id ? '#fff' : '#1A1A17',
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'flow' ? (
+        <div style={{ padding: '32px 16px', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', gap: 16 }}>
+          <div style={{ maxWidth: 580, textAlign: 'center', fontSize: 13, color: '#5A5A55',
+            lineHeight: 1.6 }}>
+            กดปุ่มดำ <b>"จำลองออเดอร์ใหม่"</b> ที่มุมขวาล่าง เพื่อดูหน้ารับออเดอร์เต็มจอ
+            (สีกระพริบ + ไอคอนกระดิ่งสั่น) — เลือกเวลาทำ → รับ → จัดการที่หน้า "ออเดอร์"
+            กดเข้าออเดอร์ → "ทำเสร็จแล้ว" เพื่อเรียกไรเดอร์
+          </div>
+          <PhoneFrame><MerchantApp initial="home"/></PhoneFrame>
+        </div>
+      ) : (
+        <DesignCanvas storageKey="thoet-merchant-all">
+          <DCSection id="core" title="A · ใช้ทุกวัน"
+            subtitle="แดชบอร์ด · รับออเดอร์ · ออเดอร์ที่กำลังทำ">
+            <DCArtboard id="m-home" label="A1 · หน้าหลัก" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="home"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="m-alert" label="A2 · ออเดอร์ใหม่ (เด่น!)" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="alert"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="m-orders" label="A3 · ออเดอร์ที่กำลังทำ" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="orders"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="m-detail" label="A4 · รายละเอียดออเดอร์" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="order-detail"/></PhoneFrame>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="setup" title="B · จัดการร้าน"
+            subtitle="เมนู · เพิ่ม/แก้เมนู · เวลาเปิด-ปิด">
+            <DCArtboard id="m-menu" label="B1 · จัดการเมนู" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="menu"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="m-edit" label="B2 · แก้ไข/เพิ่มเมนู (ถ่ายรูป)" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="item-editor"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="m-hours" label="B3 · เวลาเปิด-ปิด" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="hours"/></PhoneFrame>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="money" title="C · เงิน"
+            subtitle="รายได้ · ประวัติการโอน · โปรไฟล์ร้าน">
+            <DCArtboard id="m-revenue" label="C1 · รายได้" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="revenue"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="m-settle" label="C2 · ประวัติการโอน" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="settlements"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="m-me" label="C3 · ฉัน" width={395} height={790}>
+              <PhoneFrame><MerchantApp initial="profile"/></PhoneFrame>
+            </DCArtboard>
+          </DCSection>
+
+          <DCPostIt top={120} left={40} rotate={-3}>
+            ออกแบบให้แม่ค้า 50+ ใช้ได้ — text ≥14px, ปุ่ม ≥48px, ไม่มี swipe
+          </DCPostIt>
+        </DesignCanvas>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

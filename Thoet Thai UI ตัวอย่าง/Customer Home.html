@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Thoet Thai · Customer App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%;
+    font-family: "IBM Plex Sans Thai", system-ui, sans-serif; }
+  body { background: #EDEAE3; }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { scrollbar-width: none; }
+  *, *::before, *::after { box-sizing: border-box; }
+  button { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="tt-shared.jsx"></script>
+<script type="text/babel" src="tt-home.jsx"></script>
+<script type="text/babel" src="tt-shop.jsx"></script>
+<script type="text/babel" src="tt-cart-onboarding.jsx"></script>
+<script type="text/babel" src="tt-variations.jsx"></script>
+<script type="text/babel" src="tt-flow.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "full",
+  "showPromo": true,
+  "accent": "orange"
+}/*EDITMODE-END*/;
+
+const { IOSDevice } = window;
+const { DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
+const { TweaksPanel, useTweaks, TweakSection, TweakRadio, TweakToggle } = window;
+const { CustomerHome, ShopDetail, CartScreen, Onboarding, HomeHero, HomeMap } = window;
+const { CheckoutScreen, PromptPayScreen, OrderTracking, OrderSuccess } = window;
+const { OrderHistory, Profile, AddressPicker, Notifications, ConfirmDialog } = window;
+
+const ADDRESSES = [
+  { id: 1, label: 'บ้านเทอดไทย หมู่ 1', detail: '123/4 หมู่ 1 ถ.พหลโยธิน ต.เทอดไทย อ.แม่ฟ้าหลวง เชียงราย 57240', icon: '🏠' },
+  { id: 2, label: 'ที่ทำงาน', detail: '88 หมู่ 3 ต.เทอดไทย อ.แม่ฟ้าหลวง เชียงราย 57240', icon: '🏢' },
+];
+
+function PhoneApp({ initial = 'home', density, showPromo, accent }) {
+  const [screen, setScreen] = React.useState(initial);
+  const [shopId, setShopId] = React.useState(1);
+  const [cart, setCart] = React.useState({ 101: 1, 106: 2 });
+  const [address, setAddress] = React.useState(ADDRESSES[0]);
+  const [payment, setPayment] = React.useState('cod');
+  const [orderId, setOrderId] = React.useState('TT-A4F9');
+  const [orderTotal, setOrderTotal] = React.useState(0);
+  const [confirm, setConfirm] = React.useState(null);
+
+  const cartCount = Object.values(cart).reduce((a,b) => a+b, 0);
+
+  const addItem = id => setCart(c => ({ ...c, [id]: (c[id] || 0) + 1 }));
+  const removeItem = id => setCart(c => {
+    const n = (c[id] || 0) - 1;
+    const next = { ...c };
+    if (n <= 0) delete next[id]; else next[id] = n;
+    return next;
+  });
+
+  const openShop = id => { setShopId(id); setScreen('shop'); };
+  const handleNav = id => {
+    if (id === 'cart') setScreen('cart');
+    else if (id === 'home') setScreen('home');
+    else if (id === 'orders') setScreen('history');
+    else if (id === 'me') setScreen('profile');
+  };
+
+  const placeOrder = () => {
+    const newId = 'TT-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    setOrderId(newId);
+    // total calc
+    const menu = window.MENU[shopId] || window.MENU[1];
+    let sub = 0;
+    for (const sec of menu.sections)
+      for (const it of sec.items) if (cart[it.id]) sub += it.price * cart[it.id];
+    const fee = window.SHOPS.find(s => s.id === shopId).fee;
+    const total = sub + fee;
+    setOrderTotal(total);
+    if (payment === 'promptpay') setScreen('promptpay');
+    else setScreen('success');
+  };
+
+  const cancelOrder = () => setConfirm({
+    title: 'ยกเลิกคำสั่งซื้อ?',
+    body: 'ถ้ายกเลิกตอนนี้ จะไม่เสียค่าใช้จ่ายเลยค่ะ',
+    confirmLabel: 'ยกเลิก', cancelLabel: 'ไม่ยกเลิก', danger: true,
+    onConfirm: () => { setConfirm(null); setScreen('history'); },
+  });
+
+  const dialog = confirm && <ConfirmDialog open {...confirm}
+    onCancel={() => setConfirm(null)}/>;
+
+  let content;
+  if (screen === 'onboarding') content = <Onboarding onDone={() => setScreen('home')}/>;
+  else if (screen === 'shop') content = <ShopDetail shopId={shopId} cart={cart}
+    onAdd={addItem} onRemove={removeItem}
+    onBack={() => setScreen('home')} onCart={() => setScreen('cart')}/>;
+  else if (screen === 'cart') content = <CartScreen shopId={shopId} cart={cart}
+    onAdd={addItem} onRemove={removeItem}
+    onBack={() => setScreen('shop')} onCheckout={() => setScreen('checkout')}/>;
+  else if (screen === 'checkout') content = <CheckoutScreen shopId={shopId} cart={cart}
+    address={address} payment={payment}
+    onBack={() => setScreen('cart')}
+    onAddress={() => setScreen('address')}
+    onPayment={() => setPayment(p => p === 'cod' ? 'promptpay' : 'cod')}
+    onPay={placeOrder}/>;
+  else if (screen === 'promptpay') content = <PromptPayScreen amount={orderTotal}
+    onBack={() => setScreen('checkout')}
+    onPaid={() => setScreen('success')}/>;
+  else if (screen === 'success') content = <OrderSuccess orderId={orderId} total={orderTotal}
+    onTrack={() => setScreen('tracking')}
+    onHome={() => { setCart({}); setScreen('home'); }}/>;
+  else if (screen === 'tracking') content = <OrderTracking orderId={orderId} shopId={shopId}
+    onBack={() => setScreen('history')}
+    onChat={() => alert('เปิดแชทกับไรเดอร์')}
+    onCancel={cancelOrder}
+    onDone={() => setScreen('home')}/>;
+  else if (screen === 'history') content = <OrderHistory
+    onBack={() => setScreen('home')}
+    onOpen={(id) => { setOrderId(id); setScreen('tracking'); }}
+    onTrack={(id) => { setOrderId(id); setScreen('tracking'); }}
+    onNav={handleNav}/>;
+  else if (screen === 'profile') content = <Profile
+    onBack={() => setScreen('home')}
+    onAddress={() => setScreen('address')}
+    onNotif={() => setScreen('notifications')}
+    onNav={handleNav}/>;
+  else if (screen === 'address') content = <AddressPicker current={address}
+    onPick={a => { setAddress(a); setScreen('home'); }}
+    onBack={() => setScreen('home')}/>;
+  else if (screen === 'notifications') content = <Notifications
+    onBack={() => setScreen('home')}/>;
+  else if (screen === 'home-hero') content = <HomeHero onOpenShop={openShop}
+    cartCount={cartCount} onNav={handleNav}/>;
+  else if (screen === 'home-map') content = <HomeMap onOpenShop={openShop}
+    cartCount={cartCount} onNav={handleNav}/>;
+  else content = <CustomerHome onOpenShop={openShop} cartCount={cartCount}
+    density={density} showPromo={showPromo} accent={accent} onNav={handleNav}
+    onAddress={() => setScreen('address')}
+    onBell={() => setScreen('notifications')}/>;
+
+  return <div style={{ position: 'relative', width: '100%', height: '100%' }}>{content}{dialog}</div>;
+}
+
+function PhoneFrame({ children }) {
+  return <IOSDevice width={375} height={770}>{children}</IOSDevice>;
+}
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [tab, setTab] = React.useState('flow');
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#EDEAE3' }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(237,234,227,0.9)',
+        backdropFilter: 'blur(8px)', borderBottom: '1px solid #DDD8CC',
+        padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 600 }}>Thoet Thai · Customer App</div>
+          <div style={{ fontSize: 12.5, color: '#6B6B66', marginTop: 2 }}>
+            Home · Shop · Cart · Checkout · PromptPay · Tracking · History · Profile</div>
+        </div>
+        <div style={{ display: 'flex', gap: 4, background: '#fff', padding: 4, borderRadius: 10,
+          border: '1px solid #DDD8CC' }}>
+          {[['flow','Flow'], ['variants','All screens']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} style={{
+              padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
+              background: tab === id ? '#1A1A17' : 'transparent',
+              color: tab === id ? '#fff' : '#1A1A17',
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'flow' ? (
+        <div style={{ padding: '32px 16px', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', gap: 20 }}>
+          <div style={{ maxWidth: 560, textAlign: 'center', fontSize: 13, color: '#6B6B66',
+            lineHeight: 1.6 }}>
+            กดเล่นได้ทุกปุ่ม — ค้นหา, กดร้าน, เพิ่มของ, ไปตะกร้า, Checkout, เลือกที่อยู่,
+            สลับวิธีจ่าย (กดที่การ์ด PromptPay/COD), ยืนยัน → success → ติดตามไรเดอร์ (วิ่งเอง),
+            ดูประวัติ, โปรไฟล์, แจ้งเตือน
+          </div>
+          <PhoneFrame>
+            <PhoneApp initial="home"
+              density={tweaks.density}
+              showPromo={tweaks.showPromo}
+              accent={tweaks.accent}/>
+          </PhoneFrame>
+        </div>
+      ) : (
+        <DesignCanvas storageKey="thoet-thai-all">
+          <DCSection id="home" title="A · Home" subtitle="Feed, Hero, Map">
+            <DCArtboard id="a-feed" label="A1 · Feed" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="home"
+                density={tweaks.density} showPromo={tweaks.showPromo} accent={tweaks.accent}/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="a-hero" label="A2 · Hero" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="home-hero"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="a-map" label="A3 · Map" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="home-map"/></PhoneFrame>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="order" title="B · Order flow"
+            subtitle="Shop → Cart → Checkout → Pay → Success → Tracking">
+            <DCArtboard id="b-shop" label="B1 · Shop" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="shop"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="b-cart" label="B2 · Cart" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="cart"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="b-checkout" label="B3 · Checkout" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="checkout"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="b-qr" label="B4 · PromptPay QR" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="promptpay"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="b-success" label="B5 · Success" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="success"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="b-track" label="B6 · Tracking" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="tracking"/></PhoneFrame>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="account" title="C · Account & misc">
+            <DCArtboard id="c-history" label="C1 · Order history" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="history"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="c-profile" label="C2 · Profile" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="profile"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="c-address" label="C3 · Address picker" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="address"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="c-notif" label="C4 · Notifications" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="notifications"/></PhoneFrame>
+            </DCArtboard>
+            <DCArtboard id="c-onb" label="C5 · Onboarding" width={395} height={790}>
+              <PhoneFrame><PhoneApp initial="onboarding"/></PhoneFrame>
+            </DCArtboard>
+          </DCSection>
+
+          <DCPostIt top={120} left={40} rotate={-3}>
+            กดทุกปุ่มได้จริง — ลองสั่งจนจบ แล้วติดตามไรเดอร์ขับมาส่ง
+          </DCPostIt>
+        </DesignCanvas>
+      )}
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Card layout">
+          <TweakRadio label="Density" value={tweaks.density}
+            options={[{value:'full',label:'Full'},{value:'compact',label:'Compact'},{value:'list',label:'List'}]}
+            onChange={v => setTweak('density', v)}/>
+        </TweakSection>
+        <TweakSection label="Promo strip">
+          <TweakToggle label="แสดง promo banner" value={tweaks.showPromo}
+            onChange={v => setTweak('showPromo', v)}/>
+          <TweakRadio label="Accent" value={tweaks.accent}
+            options={[{value:'green',label:'Green'},{value:'orange',label:'Orange'}]}
+            onChange={v => setTweak('accent', v)}/>
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Bash(python -c \"from app.main import app; print\\('backend import ok'\\)\")",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(npx tsc *)",
+      "WebSearch"
+    ]
+  }
+}
